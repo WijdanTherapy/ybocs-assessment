@@ -3,6 +3,7 @@ import secrets as _secrets
 import datetime
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from ybocs.i18n import t
 from ybocs.questions import (
@@ -75,8 +76,33 @@ def inject_css(lang):
         font-family: {font_family};
         background-color: var(--bg); color: var(--deep);
     }}
-    .stApp {{ background-color: var(--bg); direction: {direction}; }}
-    .main .block-container {{ direction: {direction}; text-align: {text_align}; }}
+
+    /* Streamlit wraps every page in several nested containers (testids vary
+       slightly by version); direction/text-align must be forced on all of
+       them with !important, since Streamlit's own stylesheet sets physical
+       left/ltr values on some of these that plain inheritance won't override. */
+    html, body, .stApp,
+    [data-testid="stAppViewContainer"], [data-testid="stMain"],
+    [data-testid="stHeader"], section.main, .main .block-container,
+    [data-testid="stVerticalBlock"], [data-testid="stVerticalBlockBorderWrapper"],
+    [data-testid="stHorizontalBlock"], [data-testid="stForm"],
+    [data-testid="stMarkdownContainer"], [data-testid="stWidgetLabel"],
+    [data-testid="stTextInput"], [data-testid="stTextArea"],
+    [data-testid="stCheckbox"], [data-testid="stRadio"] {{
+        direction: {direction} !important;
+    }}
+    .stApp {{ background-color: var(--bg); }}
+    .main .block-container, [data-testid="stVerticalBlock"],
+    [data-testid="stMarkdownContainer"], [data-testid="stWidgetLabel"] p,
+    [data-testid="stMarkdownContainer"] p {{
+        text-align: {text_align} !important;
+    }}
+    /* Checkbox: put the box on the trailing side (right in RTL) instead of
+       always-left, so it reads in the same order as the Arabic label text. */
+    div[data-testid="stCheckbox"] > label {{
+        flex-direction: {"row-reverse" if rtl else "row"} !important;
+        justify-content: flex-end !important;
+    }}
 
     .page-header {{ text-align: center; padding: 2.2rem 0 1.6rem 0; border-bottom: 1px solid var(--border); margin-bottom: 1.6rem; }}
     .page-header h1 {{ font-family: {"'Noto Naskh Arabic', serif" if rtl else "'Playfair Display', serif"}; font-size: 2.1rem; font-weight: 400; color: var(--deep); margin-bottom: 0.3rem; }}
@@ -114,9 +140,26 @@ def inject_css(lang):
     div[data-testid="stTextInput"] input, div[data-testid="stTextArea"] textarea {{
         background: white !important; border: 1px solid var(--border) !important; border-radius: 3px !important;
         font-family: {font_family} !important; color: var(--deep) !important; text-align: {text_align} !important;
+        direction: {direction} !important;
     }}
     </style>
     """, unsafe_allow_html=True)
+
+    # Belt-and-braces: a couple of native behaviors (text cursor/caret start
+    # position in inputs, and any Streamlit internals keyed off the HTML dir
+    # attribute rather than the CSS direction property) only follow the
+    # document's actual dir attribute, which plain CSS cannot set. This runs
+    # in Streamlit's component iframe but reaches up to the real top-level
+    # document (same-origin), which is where the visible app actually lives.
+    components.html(f"""
+    <script>
+        const doc = window.parent.document;
+        doc.documentElement.setAttribute('dir', '{direction}');
+        doc.body.setAttribute('dir', '{direction}');
+        const appRoot = doc.querySelector('.stApp');
+        if (appRoot) appRoot.setAttribute('dir', '{direction}');
+    </script>
+    """, height=0, width=0)
 
 
 # ---------------------------------------------------------------------------
