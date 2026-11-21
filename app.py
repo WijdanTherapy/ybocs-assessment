@@ -112,6 +112,13 @@ def inject_css(lang):
     .section-divider h2 {{ font-family: {"'Noto Naskh Arabic', serif" if rtl else "'Playfair Display', serif"}; font-size: 1.45rem; font-weight: 400; color: var(--deep); margin-bottom: 0.2rem; }}
     .section-divider p {{ color: var(--warm); font-size: 0.76rem; letter-spacing: 0.06em; text-transform: {"none" if rtl else "uppercase"}; }}
 
+    .instructions-box {{ background: #FBF4E8; border: 1px solid var(--accent); border-right: {"none" if rtl else "4px solid var(--accent)"};
+        border-left: {"4px solid var(--accent)" if rtl else "none"}; border-radius: 4px;
+        padding: 1.1rem 1.5rem; margin: 0 0 1.6rem 0; text-align: {text_align}; }}
+    .instructions-title {{ font-family: {font_family}; font-weight: 600; font-size: 0.98rem; color: var(--deep); margin-bottom: 0.5rem; }}
+    .instructions-box ul {{ margin: 0; padding-{"right" if rtl else "left"}: 1.2rem; }}
+    .instructions-box li {{ font-size: 0.86rem; color: #4A3F2F; line-height: 1.75; margin-bottom: 0.45rem; }}
+
     .question-card {{ background: var(--white); border: 1px solid var(--border); border-radius: 6px;
         padding: 1.1rem 1.5rem; margin-bottom: 0.7rem; text-align: {text_align}; }}
     .q-number {{ font-size: 0.68rem; letter-spacing: 0.1em; text-transform: {"none" if rtl else "uppercase"}; color: var(--accent); margin-bottom: 0.25rem; font-weight: 500; }}
@@ -261,6 +268,13 @@ def render_checklist(lang):
     </div>
     <p style="font-size:0.88rem;color:#6B5B45;text-align:center;margin-bottom:1.3rem;line-height:1.8;">
     {t(lang, 'part1_sub')}</p>""", unsafe_allow_html=True)
+
+    instructions_items = "".join(f"<li>{item}</li>" for item in t(lang, "part1_instructions_items"))
+    st.markdown(f"""
+    <div class="instructions-box">
+        <div class="instructions-title">{t(lang, 'part1_instructions_title')}</div>
+        <ul>{instructions_items}</ul>
+    </div>""", unsafe_allow_html=True)
 
     for cat_key, cat_label, items in categories:
         st.markdown(f"#### {cat_label}")

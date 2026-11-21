@@ -5,7 +5,7 @@ inbox - never to the client - regardless of what is entered in the form."""
 import base64
 import resend
 
-THERAPIST_EMAIL = "Wijdan.psyc@gmail.com"
+THERAPIST_EMAIL = "wijdan.psyc@gmail.com"
 
 
 def _send(api_key, from_address, subject, html, attachments):

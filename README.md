@@ -54,7 +54,7 @@ streamlit run app.py
    ADMIN_PASSWORD = "choose-a-password"
    ```
 4. Reports are emailed to `THERAPIST_EMAIL` in `ybocs/email_utils.py`
-   (currently `Wijdan.psyc@gmail.com`, matching the other assessment apps in
+   (currently `wijdan.psyc@gmail.com`, matching the other assessment apps in
    this workspace) — update that constant if it should be a different inbox.
 
 ## Project structure
