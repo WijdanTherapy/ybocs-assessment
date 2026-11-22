@@ -19,7 +19,7 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.platypus import Image
+from reportlab.platypus import Image, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from matplotlib import font_manager
@@ -527,3 +527,79 @@ def header_footer(brand_text, confidential_text, generated_text, page_label, lan
         canvas.drawRightString(LETTER[0] - 0.75 * inch, 0.5 * inch, f"{page_label} {doc.page}")
         canvas.restoreState()
     return _draw
+
+
+def build_qa_appendix(ss, severity_answers, severity_items_display, checklist_categories_display,
+                       checklist_answers, answer_language="en"):
+    """Builds the shared "Appendix A (Severity Scale) / Appendix B (Symptom
+    Checklist)" flowables used by BOTH the client and therapist reports.
+    Section headers stay in English always (report structure is always
+    English per clinic policy); only the item wording itself reflects the
+    client's actual answer language, so the reader sees exactly what the
+    client read when they answered. severity_items_display and
+    checklist_categories_display must already be in that answer language."""
+    ar_mode = (answer_language == "ar")
+    item_style = ss["ArBodySmall"] if ar_mode else ss["BodySmall"]
+    sub_style = ss["ArSubHeader"] if ar_mode else ss["SubHeader"]
+
+    def _t(text):
+        return ar(text) if ar_mode else text
+
+    story = [PageBreak()]
+    story.append(Paragraph("Appendix A — Severity Scale, Item by Item" +
+                            (" (Arabic wording as answered)" if ar_mode else ""), ss["SectionHeader"]))
+    sev_rows = [["#", "Item", "Score"]]
+    for q in severity_items_display:
+        sev_rows.append([
+            Paragraph(str(q["id"]), ss["BodySmall"]),
+            Paragraph(_t(q["title"]), item_style),
+            Paragraph(str(severity_answers.get(q["id"], "")), ss["BodySmall"]),
+        ])
+    svt = Table(sev_rows, colWidths=[0.35 * inch, 5.4 * inch, 0.55 * inch])
+    svt.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EDE9E3")),
+        ("GRID", (0, 0), (-1, -1), 0.4, LINE_GRAY),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("ALIGN", (2, 0), (2, -1), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+    ]))
+    story.append(svt)
+
+    story.append(PageBreak())
+    story.append(Paragraph("Appendix B — Symptom Checklist, Items Endorsed" +
+                            (" (Arabic wording as answered)" if ar_mode else ""), ss["SectionHeader"]))
+    any_endorsed = False
+    for cat_key, cat_label, items in checklist_categories_display:
+        rows_for_cat = []
+        for item_id, text, _ex in items:
+            ans = checklist_answers.get(item_id, {})
+            if ans.get("current") or ans.get("past"):
+                any_endorsed = True
+                status = "Current" if ans.get("current") else "Past only"
+                rows_for_cat.append([str(item_id), _t(text), status])
+        if rows_for_cat:
+            story.append(Paragraph(_t(cat_label) if ar_mode else cat_label, sub_style))
+            cat_rows = [["#", "Item", "Status"]] + [
+                [Paragraph(r[0], ss["BodySmall"]), Paragraph(r[1], item_style), Paragraph(r[2], ss["BodySmall"])]
+                for r in rows_for_cat
+            ]
+            ct = Table(cat_rows, colWidths=[0.35 * inch, 5.1 * inch, 0.85 * inch])
+            ct.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EDE9E3")),
+                ("GRID", (0, 0), (-1, -1), 0.4, LINE_GRAY),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("ALIGN", (0, 0), (0, -1), "CENTER"),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 8.3),
+            ]))
+            story.append(ct)
+            story.append(Spacer(1, 8))
+    if not any_endorsed:
+        story.append(Paragraph("No symptom checklist items were marked as past or current.", ss["Body"]))
+
+    return story

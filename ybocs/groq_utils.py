@@ -210,13 +210,12 @@ def _call_with_retry(payload, api_key, timeout, max_attempts):
     raise last_err
 
 
-def generate_client_narrative(client_name, scores, endorsed_current, lang, api_key,
+def generate_client_narrative(client_name, scores, endorsed_current, api_key,
                                model=None, timeout=60, max_attempts=2):
-    lang_note = (
-        "Write the JSON string values in Arabic (Modern Standard Arabic, warm and natural clinical tone)."
-        if lang == "ar" else
-        "Write the JSON string values in English."
-    )
+    # Report narrative is always English per clinic policy, regardless of
+    # which language the client answered in - only the Q&A appendix (built
+    # separately, see pdf_base.build_qa_appendix) reflects answer language.
+    lang_note = "Write the JSON string values in English."
     context = _build_client_context(client_name, scores, endorsed_current, lang_note)
     payload = {
         "model": model or DEFAULT_MODEL,

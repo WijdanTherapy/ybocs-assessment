@@ -24,7 +24,7 @@ from reportlab.platypus import (
 from .pdf_base import (
     base_styles, header_footer, ar, NAVY, SLATE, SLATE_LIGHT, GOLD, LINE_GRAY,
     BG_PANEL, TEXT_DARK, BAND_COLORS, obsession_compulsion_chart, severity_gauge,
-    severity_items_chart, category_endorsement_chart,
+    severity_items_chart, category_endorsement_chart, build_qa_appendix,
 )
 from .content import BAND_DESCRIPTIONS, SYMPTOM_DIMENSIONS
 
@@ -251,72 +251,12 @@ def generate_therapist_pdf(client_info, scores, severity_answers, severity_items
             ss["Body"]))
 
     # ---------------- Appendix: full item-by-item data ----------------
-    # Appendix wording reflects the client's actual answer language, so the
-    # clinician sees exactly what the client read. Arabic needs the Arabic
-    # font + reshaping/RTL; the English headers above stay English regardless.
-    ar_mode = (answer_language == "ar")
-    item_style = ss["ArBodySmall"] if ar_mode else ss["BodySmall"]
-
-    def _item_text(text):
-        return ar(text) if ar_mode else text
-
-    story.append(PageBreak())
-    story.append(Paragraph("Appendix A — Severity Scale, Item by Item" +
-                            (" (Arabic wording as answered)" if ar_mode else ""), ss["SectionHeader"]))
-    sev_rows = [["#", "Item", "Score"]]
-    for q in severity_items_display:
-        sev_rows.append([
-            Paragraph(str(q["id"]), ss["BodySmall"]),
-            Paragraph(_item_text(q["title"]), item_style),
-            Paragraph(str(severity_answers.get(q["id"], "")), ss["BodySmall"]),
-        ])
-    svt = Table(sev_rows, colWidths=[0.35 * inch, 5.4 * inch, 0.55 * inch])
-    svt.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EDE9E3")),
-        ("GRID", (0, 0), (-1, -1), 0.4, LINE_GRAY),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (0, 0), (0, -1), "CENTER"),
-        ("ALIGN", (2, 0), (2, -1), "CENTER"),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-    ]))
-    story.append(svt)
-
-    story.append(PageBreak())
-    story.append(Paragraph("Appendix B — Symptom Checklist, Items Endorsed" +
-                            (" (Arabic wording as answered)" if ar_mode else ""), ss["SectionHeader"]))
-    any_endorsed = False
-    for cat_key, cat_label, items in checklist_categories:
-        rows_for_cat = []
-        for item_id, text, _ex in items:
-            ans = checklist_answers.get(item_id, {})
-            if ans.get("current") or ans.get("past"):
-                any_endorsed = True
-                status = "Current" if ans.get("current") else "Past only"
-                rows_for_cat.append([str(item_id), _item_text(text), status])
-        if rows_for_cat:
-            sub_style = ss["ArSubHeader"] if ar_mode else ss["SubHeader"]
-            story.append(Paragraph(_item_text(cat_label) if ar_mode else cat_label, sub_style))
-            cat_rows = [["#", "Item", "Status"]] + [
-                [Paragraph(r[0], ss["BodySmall"]), Paragraph(r[1], item_style), Paragraph(r[2], ss["BodySmall"])]
-                for r in rows_for_cat
-            ]
-            ct = Table(cat_rows, colWidths=[0.35 * inch, 5.1 * inch, 0.85 * inch])
-            ct.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EDE9E3")),
-                ("GRID", (0, 0), (-1, -1), 0.4, LINE_GRAY),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ALIGN", (0, 0), (0, -1), "CENTER"),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 8.3),
-            ]))
-            story.append(ct)
-            story.append(Spacer(1, 8))
-    if not any_endorsed:
-        story.append(Paragraph("No symptom checklist items were marked as past or current.", ss["Body"]))
+    # Shared with the client report - section headers stay English always;
+    # only item wording reflects the client's actual answer language.
+    story.extend(build_qa_appendix(
+        ss, severity_answers, severity_items_display, checklist_categories,
+        checklist_answers, answer_language=answer_language,
+    ))
 
     generated_text = f"Generated {datetime.now().strftime('%B %d, %Y')}"
     doc.build(

@@ -370,23 +370,23 @@ def submit_assessment(lang):
     with st.spinner(t(lang, "submitting")):
         scores = score_severity(st.session_state.severity_answers)
 
-        categories = CHECKLIST_CATEGORIES_AR if lang == "ar" else CHECKLIST_CATEGORIES
-        category_counts = checklist_category_counts(st.session_state.checklist_answers, categories)
-        # The therapist report's category chart is always rendered through the
-        # English/matplotlib chart path, so it needs English category labels
-        # regardless of the client's answer language (Arabic text labels and
-        # matplotlib's text path don't mix reliably - see pdf_base.py notes).
-        category_counts_en = (
-            category_counts if lang == "en"
-            else checklist_category_counts(st.session_state.checklist_answers, CHECKLIST_CATEGORIES)
-        )
+        # Both reports' charts are always rendered English (and the category
+        # chart specifically goes through the matplotlib/English-only path -
+        # see pdf_base.py notes on Arabic text there), so category counts are
+        # always computed from the English category labels regardless of the
+        # client's answer language.
+        category_counts_en = checklist_category_counts(st.session_state.checklist_answers, CHECKLIST_CATEGORIES)
 
-        endorsed_current = {}
-        for cat_key, cat_label, items in categories:
+        # Context fed to the AI is always built from the English item bank -
+        # both report narratives are always English per clinic policy, so
+        # there's no reason to feed the model Arabic text just to have it
+        # translate back.
+        endorsed_current_en = {}
+        for cat_key, cat_label, items in CHECKLIST_CATEGORIES:
             texts = [text for item_id, text, _ex in items
                      if st.session_state.checklist_answers.get(item_id, {}).get("current")]
             if texts:
-                endorsed_current[cat_label] = texts
+                endorsed_current_en[cat_label] = texts
 
         client_name = st.session_state.client_name or ""
         client_info = {"name": client_name}
@@ -396,24 +396,31 @@ def submit_assessment(lang):
         intervention = None
         try:
             narrative = groq_utils.generate_client_narrative(
-                client_name, scores, endorsed_current, lang, groq_key)
+                client_name, scores, endorsed_current_en, groq_key)
         except Exception as e:
             st.warning(f"Client narrative generation failed (report still saved): {e}")
 
         try:
             intervention = groq_utils.generate_therapist_intervention(
                 client_name, scores, st.session_state.severity_answers, SCORED_SEVERITY_ITEMS,
-                category_counts, endorsed_current, groq_key)
+                category_counts_en, endorsed_current_en, groq_key)
         except Exception as e:
             st.warning(f"Therapist intervention generation failed (report still saved): {e}")
 
-        client_pdf = generate_client_pdf(client_info, scores, narrative, category_counts, lang=lang)
-
-        # The severity CHART always stays English (therapist charts are
-        # English by design); only Appendix A's wording should match what the
-        # client actually read, so that uses the client's own answer language.
+        # Both reports are always English in narrative/structure; only the
+        # Q&A appendix wording matches the client's own answer language, so
+        # the clinician sees exactly what the client read and answered.
         severity_items_display = SCORED_SEVERITY_ITEMS_AR if lang == "ar" else SCORED_SEVERITY_ITEMS
         checklist_categories_lang = CHECKLIST_CATEGORIES_AR if lang == "ar" else CHECKLIST_CATEGORIES
+
+        client_pdf = generate_client_pdf(
+            client_info, scores, narrative, category_counts_en,
+            severity_answers=st.session_state.severity_answers,
+            severity_items_display=severity_items_display,
+            checklist_categories_display=checklist_categories_lang,
+            checklist_answers=st.session_state.checklist_answers,
+            answer_language=lang,
+        )
         therapist_pdf = generate_therapist_pdf(
             client_info, scores, st.session_state.severity_answers, SCORED_SEVERITY_ITEMS,
             category_counts_en, checklist_categories_lang, st.session_state.checklist_answers,
